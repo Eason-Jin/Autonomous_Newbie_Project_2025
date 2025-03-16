@@ -1,0 +1,6 @@
+msg/Kinematics.idl
+msg/Kinematics.msg
+msg/LocationStamped.idl
+msg/LocationStamped.msg
+msg/Response.idl
+msg/Response.msg
