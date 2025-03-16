@@ -52,7 +52,7 @@ source ./install/setup.bash
 ```
 Then lauch the node using:
 ```bash
-ros2 run autonomous_take_home_projest_runner runner data.csv
+ros2 run autonomous_take_home_project_runner runner data.csv
 ```
 This will run for around 11 seconds.
 practice using the CLI commands to analyse the messages being published.
