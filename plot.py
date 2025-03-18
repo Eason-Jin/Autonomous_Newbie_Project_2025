@@ -14,5 +14,5 @@ plt.xlabel('X')
 plt.ylabel('Y')
 plt.title('Plot of Data.csv')
 
-# plt.grid(True)
+plt.savefig("data_plot.jpg")
 plt.show()
