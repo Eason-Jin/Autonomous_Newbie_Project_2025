@@ -19,8 +19,14 @@ public:
         pub = this->create_publisher<msgs::msg::Response>("response", 10);
 
         last_time = rclcpp::Time(0, 0);
-        last_point_2 = geometry_msgs::msg::Point(0.0, 0.0, 0.0);
-        last_velocity = geometry_msgs::msg::Vector3(0.0, 0.0, 0.0);
+        geometry_msgs::msg::Point last_point_2;
+        last_point_2.x = 0.0;
+        last_point_2.y = 0.0;
+        last_point_2.z = 0.0;
+        geometry_msgs::msg::Vector3 last_velocity;
+        last_velocity.x = 0.0;
+        last_velocity.y = 0.0;
+        last_velocity.z = 0.0;
     }
 
 private:
@@ -40,8 +46,16 @@ private:
 
         msgs::msg::Response response_msg;
         double time_diff = find_time_difference(new_time, last_time);
-        geometry_msgs::msg::Point new_point = {x, y, 0.0};
-        geometry_msgs::msg::Vector3 new_velocity = {(x - last_point_2.x) / time_diff, (y - last_point_2.y) / time_diff, 0.0};
+        geometry_msgs::msg::Point new_point;
+        new_point.x = x;
+        new_point.y = y;
+        new_point.z = 0.0;
+
+        geometry_msgs::msg::Vector3 new_velocity;
+        new_velocity.x = (x - last_point_2.x) / time_diff;
+        new_velocity.y = (y - last_point_2.y) / time_diff;
+        new_velocity.z = 0.0;
+
         if (time_diff > 0)
         {
             response_msg.target = create_target(time_diff, new_point, new_velocity);
@@ -85,7 +99,7 @@ private:
 
         double angle_diff = find_angle_difference(new_velocity, last_velocity);
         target.angle = angle_diff;
-        target.angular_velocity = angle_diff / time_diff;
+        target.anglular_velocity = angle_diff / time_diff;
         return target;
     }
 
@@ -141,14 +155,11 @@ private:
 
     bool is_valid(geometry_msgs::msg::Point &p1, geometry_msgs::msg::Point &p2, geometry_msgs::msg::Point &p3)
     {
-        // This is for the first two points
-        if (p1 == nullptr || p2 == nullptr)
-        {
-            return true;
-        }
+        // Consider the case for the first two points
+
         // Given 3 points {p1, p2, p3}, if angle between (p2-p1) and (p2-p3) is too small, this target is invalid
         const int threshold = 90;
-        if (find_angle_difference(create_vector_from_points(p2, p3) - create_vector_from_points(p1, p2)) > threshold)
+        if ((find_angle_difference(create_vector_from_points(p2, p3), create_vector_from_points(p1, p2))) > threshold)
         {
             return true;
         }
