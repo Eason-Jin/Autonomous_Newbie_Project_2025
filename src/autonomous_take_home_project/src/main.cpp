@@ -74,16 +74,16 @@ private:
             target.acceleration = new_acceleration;
 
             double angle = find_angle(new_velocity, last_velocity);
-            target.angle = static_cast<float64_t> angle;
+            target.angle = angle;
             double angular_velocity = angle / time_diff;
-            target.anglular_velocity = static_cast<float64_t> angular_velocity;
+            target.anglular_velocity = angular_velocity;
 
             response_msg.target = target;
 
             printf("x: %f\t y: %f\t velocity: %.2f\t acc: %.2f\t angle: %.2f\t ang_v: %.2f\n", x, y, find_magnitude(new_velocity), find_magnitude(new_acceleration), angle, fabs(angular_velocity));
-            const max_speed = 10;
-            const max_acc = 2.5;
-            const max_ang_v = 2.5;
+            const double max_speed = 10;
+            const double max_acc = 2.5;
+            const double max_ang_v = 2.5;
 
             if (is_valid(last_point_1, last_point_2, new_point) && find_magnitude(new_velocity) <= max_speed && find_magnitude(new_acceleration) <= max_acc && fabs(angular_velocity) <= max_ang_v)
             {
@@ -122,7 +122,8 @@ private:
                       const geometry_msgs::msg::Vector3 &last_vec)
     {
         double dot_product = new_vec.x * last_vec.x + new_vec.y * last_vec.y;
-        double magnitude_new_vec = find_magnitude(new_vec) double magnitude_last_vec = find_magnitude(last_vec);
+        double magnitude_new_vec = find_magnitude(new_vec);
+        double magnitude_last_vec = find_magnitude(last_vec);
 
         if (magnitude_new_vec == 0.0 || magnitude_last_vec == 0.0)
         {
