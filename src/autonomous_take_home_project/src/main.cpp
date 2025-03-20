@@ -1,5 +1,6 @@
 #include <cmath>
 #include <chrono>
+#include <inttypes.h>
 
 #include <rclcpp/rclcpp.hpp>
 #include <msgs/msg/location_stamped.hpp>
@@ -18,7 +19,7 @@ public:
 
         pub = this->create_publisher<msgs::msg::Response>("response", 10);
 
-        last_time = rclcpp::Time(0, 0);
+        last_time = 0;
 
         last_point_1.x = 0.0;
         last_point_1.y = 0.0;
@@ -37,17 +38,18 @@ private:
     void location_callback(const msgs::msg::LocationStamped::SharedPtr msg)
     {
         // Get time
-        int32_t sec = msg->header.stamp.sec;
-        uint32_t nanosec = msg->header.stamp.nanosec;
+        uint64_t sec = msg->header.stamp.sec;
+        uint64_t nanosec = msg->header.stamp.nanosec;
 
-        rclcpp::Time new_time = rclcpp::Time(sec, nanosec);
+        uint64_t new_time = sec * 1000000000 + nanosec;
 
         // Get location
         double x = msg->location.x;
         double y = msg->location.y;
+        printf("Time: %" PRIu64 "\t x: %.2f\t y: %.2f\n", new_time, x, y);
 
         msgs::msg::Response response_msg;
-        double time_diff = find_time_difference(new_time, last_time);
+        double time_diff = new_time - last_time;
 
         if (time_diff > 0)
         {
@@ -80,7 +82,7 @@ private:
 
             response_msg.target = target;
 
-            printf("x: %f\t y: %f\t velocity: %.2f\t acc: %.2f\t angle: %.2f\t ang_v: %.2f\n", x, y, find_magnitude(new_velocity), find_magnitude(new_acceleration), angle, fabs(angular_velocity));
+            // printf("x: %.2f\t y: %.2f\t velocity: %.2f\t acc: %.2f\t angle: %.2f\t ang_v: %.2f\n", x, y, find_magnitude(new_velocity), find_magnitude(new_acceleration), angle, fabs(angular_velocity));
             const double max_speed = 10;
             const double max_acc = 2.5;
             const double max_ang_v = 2.5;
@@ -107,15 +109,6 @@ private:
 
             pub->publish(response_msg);
         }
-    }
-
-    double find_time_difference(rclcpp::Time &new_time, rclcpp::Time &last_time)
-    {
-        int32_t sec_diff = new_time.seconds() - last_time.seconds();
-        int64_t nanosec_diff = static_cast<int64_t>(new_time.nanoseconds()) -
-                               static_cast<int64_t>(last_time.nanoseconds());
-
-        return sec_diff + nanosec_diff / 1e9;
     }
 
     double find_angle(const geometry_msgs::msg::Vector3 &new_vec,
@@ -183,7 +176,7 @@ private:
     rclcpp::Subscription<msgs::msg::LocationStamped>::SharedPtr sub;
     rclcpp::Publisher<msgs::msg::Response>::SharedPtr pub;
 
-    rclcpp::Time last_time;
+    uint64_t last_time;
     geometry_msgs::msg::Point last_point_1; // This is at t-2
     geometry_msgs::msg::Point last_point_2; // This is at t-1
     geometry_msgs::msg::Vector3 last_velocity;

@@ -123,7 +123,7 @@ private:
     void response_callback(const msgs::msg::Response msg)
     {
         RCLCPP_INFO(this->get_logger(), "Received response");
-        rclcpp::shutdown();
+        // rclcpp::shutdown();
     }
 
     rclcpp::Publisher<msgs::msg::LocationStamped>::SharedPtr publisher_;
