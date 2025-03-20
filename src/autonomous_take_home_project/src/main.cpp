@@ -1,6 +1,9 @@
 #include <cmath>
 #include <chrono>
 #include <algorithm>
+#include <map>
+#include <vector>
+#include <fstream>
 
 #include <rclcpp/rclcpp.hpp>
 #include <msgs/msg/location_stamped.hpp>
@@ -43,6 +46,14 @@ public:
         target_last_angle = 0.0;
 
         lvtl = vehicle_last_location;
+
+        results_map["target_x"] = {0.0};
+        results_map["target_y"] = {0.0};
+        results_map["vehicle_x"] = {0.0};
+        results_map["vehicle_y"] = {0.0};
+        timer_ = this->create_wall_timer(
+            std::chrono::seconds(12),
+            std::bind(&LocationSubscriber::timer_callback, this));
     }
 
 private:
@@ -62,6 +73,9 @@ private:
         double x = msg->location.x;
         double y = msg->location.y;
         printf("Time: %f\t x: %.2f\t y: %.2f\n", new_time, x, y);
+
+        results_map["target_x"].push_back(x);
+        results_map["target_y"].push_back(y);
 
         msgs::msg::Response response_msg;
         double time_diff = new_time - last_time;
@@ -126,6 +140,9 @@ private:
         new_point.y = lvtl.y + target_velocity.y * time_diff * std::sin(target_angle);
         new_point.z = 0.0;
         response_msg.target_location = new_point;
+
+        results_map["vehicle_x"].push_back(new_point.x);
+        results_map["vehicle_y"].push_back(new_point.y);
 
         // Simulate vehicle between lvtl and new point
         msgs::msg::Kinematics vehicle;
@@ -234,22 +251,29 @@ private:
         return std::sqrt(vector.x * vector.x + vector.y * vector.y + vector.z * vector.z);
     }
 
-    bool is_valid(geometry_msgs::msg::Point &p1, geometry_msgs::msg::Point &p2, geometry_msgs::msg::Point &p3)
+    void write_to_csv()
     {
-        // Consider the case for the first time
-        geometry_msgs::msg::Vector3 vec1 = create_vector_from_points(p2, p3);
-        geometry_msgs::msg::Vector3 vec2 = create_vector_from_points(p1, p2);
-        double magnitude_vec1 = find_magnitude((vec1));
-        double magnitude_vec2 = find_magnitude(vec2);
-        if (magnitude_vec1 == 0.0 || magnitude_vec2 == 0.0)
+        std::ofstream file("results.csv", std::ios::app);
+        if (!file.is_open())
         {
-            return true;
+            return;
         }
 
-        // Given 3 points {p1, p2, p3}, if angle between (p2-p1) and (p2-p3) is too small, this target is invalid
-        const int threshold = 2.5; // From the brief
-        return (fabs(find_angle(vec1, vec2)) <= threshold) ? true : false;
+        size_t data_size = results_map[0].size();
+
+        // Iterate through the vectors and write the data to CSV
+        for (size_t i = 0; i < data_size; ++i)
+        {
+            file << results_map["target_x"][i] << "," << results_map["target_y"][i] << "," << results_map["vehicle_y"][i] << "," << results_map["vehicle_y"][i] << "\n";
+        }
+
+        file.close();
     }
+    void timer_callback()
+    {
+        write_to_csv(results_map);
+    }
+
     rclcpp::Subscription<msgs::msg::LocationStamped>::SharedPtr sub;
     rclcpp::Publisher<msgs::msg::Response>::SharedPtr pub;
 
@@ -264,6 +288,9 @@ private:
     double target_last_angle;
 
     geometry_msgs::msg::Point lvtl;
+
+    std::map<std::string, std::vector<double>> results_map;
+    rclcpp::TimerBase::SharedPtr timer_;
 };
 
 int main(int argc, char **argv)
