@@ -46,7 +46,7 @@ public:
 
         lvtl = vehicle_last_location;
 
-        const size_t max_history = 5;
+        max_history = 5;
         location_history.push_back({last_time, lvtl});
     }
 
@@ -274,6 +274,7 @@ private:
     geometry_msgs::msg::Point lvtl;
 
     std::deque<std::pair<uint64_t, geometry_msgs::msg::Point>> location_history;
+    size_t max_history;
 };
 
 int main(int argc, char **argv)
