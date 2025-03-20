@@ -165,6 +165,7 @@ private:
         msgs::msg::Kinematics vehicle;
 
         vehicle.position = new_point;
+        printf("\t\t new_x: %.2f\t new_y: %.2f\n", new_point.x, new_point.y);
 
         geometry_msgs::msg::Vector3 vehicle_velocity;
         vehicle_velocity.x = (new_point.x - lvtl.x) / time_diff;
