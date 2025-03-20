@@ -30,10 +30,6 @@ public:
         vehicle_last_velocity.y = 0.0;
         vehicle_last_velocity.z = 0.0;
 
-        vehicle_last_acceleration.x = 0.0;
-        vehicle_last_acceleration.y = 0.0;
-        vehicle_last_acceleration.z = 0.0;
-
         vehicle_last_angle = 0.0;
 
         target_last_location.x = 0.0;
@@ -43,10 +39,6 @@ public:
         target_last_velocity.x = 0.0;
         target_last_velocity.y = 0.0;
         target_last_velocity.z = 0.0;
-
-        target_last_acceleration.x = 0.0;
-        target_last_acceleration.y = 0.0;
-        target_last_acceleration.z = 0.0;
 
         target_last_angle = 0.0;
 
@@ -135,17 +127,40 @@ private:
         new_point.z = 0.0;
         response_msg.target_location = new_point;
 
-        printf("lvtl: {%.2f, %.2f},\t target_location: {%.2f, %.2f}", lvtl.x, lvtl.y, new_point.x, new_point.y);
         // Simulate vehicle between lvtl and new point
+        msgs::msg::Kinematics vehicle;
+
+        vehicle.location = new_point;
+
+        geometry_msgs::msg::Vector3 vehicle_velocity;
+        vehicle_velocity.x = (new_point.x - lvtl.x) / time_diff;
+        vehicle_velocity.y = (new_point.y - lvtl.y) / time_diff;
+        vehicle_velocity.z = 0.0;
+        vehicle.velocity = vehicle_velocity;
+
+        geometry_msgs::msg::Vector3 vehicle_acceleration;
+        vehicle_acceleration.x = (vehicle_velocity.x - vehicle_last_velocity.x) / time_diff;
+        vehicle_acceleration.y = (vehicle_velocity.y - vehicle_last_velocity.y) / time_diff;
+        vehicle_acceleration.z = 0.0;
+        target.acceleration = vehicle_acceleration;
+
+        double vehicle_angle = find_angle(vehicle_velocity, vehicle_last_velocity);
+        vehicle.angle = vehicle_angle;
+        double vehicle_angular_velocity = vehicle_angle / time_diff;
+        vehicle.anglular_velocity = vehicle_angular_velocity;
+
+        response_msg.vehicle = vehicle;
 
         // Reset last variables
         last_time = new_time;
 
-        // TODO: maybe change this later
         target_last_location = target_location;
         target_last_velocity = target_velocity;
-        target_last_acceleration = target_acceleration;
         target_last_angle = target_angle;
+
+        vehicle_last_location = new_point;
+        vehicle_last_velocity = vehicle_velocity;
+        vehicle_last_angle = vehicle_angle;
 
         lvtl = new_point;
 
@@ -242,12 +257,10 @@ private:
 
     geometry_msgs::msg::Point vehicle_last_location;
     geometry_msgs::msg::Vector3 vehicle_last_velocity;
-    geometry_msgs::msg::Vector3 vehicle_last_acceleration;
     double vehicle_last_angle;
 
     geometry_msgs::msg::Point target_last_location;
     geometry_msgs::msg::Vector3 target_last_velocity;
-    geometry_msgs::msg::Vector3 target_last_acceleration;
     double target_last_angle;
 
     geometry_msgs::msg::Point lvtl;
