@@ -2,6 +2,7 @@
 #include <stdexcept>
 #include <cmath>
 #include <geometry_msgs/msg/point.hpp>
+#include <iostream>
 
 void CubicRegression::fit(const std::vector<uint64_t> &x, const std::vector<geometry_msgs::msg::Point> &y)
 {
@@ -60,6 +61,10 @@ void CubicRegression::fit(const std::vector<uint64_t> &x, const std::vector<geom
 
     // Solve the system of equations for y coefficients
     solveSystem(A, By, ay, by, cy, dy);
+
+    // Debug prints for coefficients
+    std::cout << "Coefficients for x: " << ax << ", " << bx << ", " << cx << ", " << dx << std::endl;
+    std::cout << "Coefficients for y: " << ay << ", " << by << ", " << cy << ", " << dy << std::endl;
 }
 
 void CubicRegression::solveSystem(double A[4][4], double B[4], double &a, double &b, double &c, double &d)
@@ -104,5 +109,10 @@ geometry_msgs::msg::Point CubicRegression::predict(uint64_t x) const
     point.x = ax * x3 + bx * x2 + cx * x + dx;
     point.y = ay * x3 + by * x2 + cy * x + dy;
     point.z = 0.0;
+
+    // Debug prints for prediction
+    std::cout << "Predicting for x: " << x << std::endl;
+    std::cout << "Predicted point: (" << point.x << ", " << point.y << ", " << point.z << ")" << std::endl;
+
     return point;
 }
