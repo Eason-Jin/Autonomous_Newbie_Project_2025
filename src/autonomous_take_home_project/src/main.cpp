@@ -130,7 +130,7 @@ private:
         // Simulate vehicle between lvtl and new point
         msgs::msg::Kinematics vehicle;
 
-        vehicle.location = new_point;
+        vehicle.position = new_point;
 
         geometry_msgs::msg::Vector3 vehicle_velocity;
         vehicle_velocity.x = (new_point.x - lvtl.x) / time_diff;
