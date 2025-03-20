@@ -138,23 +138,18 @@ private:
         else
         {
             std::vector<uint64_t> times;
-            std::vector<double> x_values, y_values;
+            std::vector<geometry_msgs::msg::Point> points;
 
             for (const auto &pair : location_history)
             {
                 times.push_back(pair.first);
-                x_values.push_back(pair.second.x);
-                y_values.push_back(pair.second.y);
+                points.push_back(pair.second);
             }
-            
-            // Perform linear regression for each component (x, y)
-            CubicRegression cr_x, cr_y;
-            cr_x.fit(times, x_values);
-            cr_y.fit(times, y_values);
 
-            new_point.x = cr_x.predict(new_time);
-            new_point.y = cr_y.predict(new_time);
-            new_point.z = 0.0;
+            CubicRegression cr;
+            cr.fit(times, points);
+
+            new_point = cr.predict(new_time);
 
             location_history.pop_front();
             location_history.push_back({new_time, new_point});
