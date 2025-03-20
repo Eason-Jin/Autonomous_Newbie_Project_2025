@@ -15,7 +15,7 @@ find_package(std_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(msgs REQUIRED)
 
-add_executable(main src/main.cpp)
+add_executable(main src/cubic_regression.cpp src/main.cpp)
 ament_target_dependencies(main rclcpp std_msgs msgs)
 
 install(TARGETS

@@ -1,15 +1,14 @@
 #include <cmath>
 #include <chrono>
 #include <algorithm>
-#include <map>
-#include <vector>
-#include <fstream>
+#include <deque>
 
 #include <rclcpp/rclcpp.hpp>
 #include <msgs/msg/location_stamped.hpp>
 #include <msgs/msg/response.hpp>
 #include <geometry_msgs/msg/point.hpp>
 #include <geometry_msgs/msg/vector3.hpp>
+#include "cubic_regression.hpp"
 
 class LocationSubscriber : public rclcpp::Node
 {
@@ -46,6 +45,9 @@ public:
         target_last_angle = 0.0;
 
         lvtl = vehicle_last_location;
+
+        const size_t max_history = 5;
+        location_history.push_back({last_time, lvtl});
     }
 
 private:
@@ -125,9 +127,38 @@ private:
         response_msg.lvtl = lvtl;
         // Reconstruct target point using velocity and angle
         geometry_msgs::msg::Point new_point;
-        new_point.x = lvtl.x + target_velocity.x * time_diff * std::cos(target_angle);
-        new_point.y = lvtl.y + target_velocity.y * time_diff * std::sin(target_angle);
-        new_point.z = 0.0;
+        if (location_history.size() < max_history)
+        {
+            new_point.x = lvtl.x + target_velocity.x * time_diff * std::cos(target_angle);
+            new_point.y = lvtl.y + target_velocity.y * time_diff * std::sin(target_angle);
+            new_point.z = 0.0;
+
+            location_history.push_back({new_time, new_point});
+        }
+        else
+        {
+            std::vector<uint64_t> times;
+            std::vector<double> x_values, y_values;
+
+            for (const auto &pair : location_history)
+            {
+                times.push_back(pair.first);
+                x_values.push_back(pair.second.x);
+                y_values.push_back(pair.second.y);
+            }
+            
+            // Perform linear regression for each component (x, y)
+            CubicRegression cr_x, cr_y;
+            cr_x.fit(times, x_values);
+            cr_y.fit(times, y_values);
+
+            new_point.x = cr_x.predict(new_time);
+            new_point.y = cr_y.predict(new_time);
+            new_point.z = 0.0;
+
+            location_history.pop_front();
+            location_history.push_back({new_time, new_point});
+        }
         response_msg.target_location = new_point;
 
         // Simulate vehicle between lvtl and new point
@@ -241,6 +272,8 @@ private:
     double target_last_angle;
 
     geometry_msgs::msg::Point lvtl;
+
+    std::deque<std::pair<uint64_t, geometry_msgs::msg::Point>> location_history;
 };
 
 int main(int argc, char **argv)
