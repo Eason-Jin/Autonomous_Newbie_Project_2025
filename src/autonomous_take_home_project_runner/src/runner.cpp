@@ -53,102 +53,96 @@ private:
         {
             std::vector<std::string> row;
             std::stringstream ss(line);
+            std::string cell;
 
             while (std::getline(ss, cell, ','))
             {
                 row.push_back(cell);
             }
-
-            uint64_t time = row[0];
-            float x = std::stof(row[1]);
-            float y = std::stof(row[2]);
-            locations_.push_back({time, x, y});
+            locations_.push_back({std::stoull(row[0]), std::stof(row[1]), std::stof(row[2])});
         }
+        file.close();
+        // RCLCPP_INFO(this->get_logger(), "Loaded %zu locations", locations_.size());
     }
-    file.close();
-    RCLCPP_INFO(this->get_logger(), "Loaded %zu locations", locations_.size());
-}
 
-void
-publish_location()
-{
-    // if (index_ >= locations_.size()) {
-    //     RCLCPP_INFO(this->get_logger(), "All locations published.");
-    //     return;
-    // }
-
-    auto msg = msgs::msg::LocationStamped();
-    // todo
-    msg.header.stamp.sec = locations_[index_].time / 1000000000;
-    msg.header.stamp.nanosec = locations_[index_].time % 1000000000;
-    msg.header.frame_id = "map";
-    msg.location.x = locations_[index_].x;
-    msg.location.y = locations_[index_].y;
-    msg.location.z = 0.0;
-
-    publisher_->publish(msg);
-
-    RCLCPP_INFO(this->get_logger(), "Published location: [%.2f, %.2f]", msg.location.x, msg.location.y);
-
-    index_++;
-
-    if (index_ >= locations_.size())
+    void publish_location()
     {
-        RCLCPP_INFO(this->get_logger(), "All locations published.");
-        RCLCPP_INFO(this->get_logger(), "Sorry the verifier is not working atm. Please check back later");
-        timer_->cancel();
-        return;
+        // if (index_ >= locations_.size()) {
+        //     RCLCPP_INFO(this->get_logger(), "All locations published.");
+        //     return;
+        // }
+
+        auto msg = msgs::msg::LocationStamped();
+        // todo
+        msg.header.stamp.sec = locations_[index_].time / 1000000000;
+        msg.header.stamp.nanosec = locations_[index_].time % 1000000000;
+        msg.header.frame_id = "map";
+        msg.location.x = locations_[index_].x;
+        msg.location.y = locations_[index_].y;
+        msg.location.z = 0.0;
+
+        publisher_->publish(msg);
+
+        RCLCPP_INFO(this->get_logger(), "Published location: [%.2f, %.2f]", msg.location.x, msg.location.y);
+
+        index_++;
+
+        if (index_ >= locations_.size())
+        {
+            RCLCPP_INFO(this->get_logger(), "All locations published.");
+            RCLCPP_INFO(this->get_logger(), "Sorry the verifier is not working atm. Please check back later");
+            timer_->cancel();
+            return;
+        }
+
+        // RCLCPP_INFO(this->get_logger(), "Time stamp: %li s, %li ns", msg.header.stamp.sec, msg.header.stamp.nanosec);
+
+        uint64_t temp_time;
+        if (index_ > 0)
+        {
+            temp_time = locations_[index_].time - locations_[index_ - 1].time;
+        }
+        else
+        {
+            temp_time = locations_[index_].time;
+        }
+        auto millis = std::chrono::nanoseconds(static_cast<int64_t>(temp_time));
+        change_timer_period(millis);
     }
 
-    // RCLCPP_INFO(this->get_logger(), "Time stamp: %li s, %li ns", msg.header.stamp.sec, msg.header.stamp.nanosec);
-
-    uint64_t temp_time;
-    if (index_ > 0)
+    void change_timer_period(std::chrono::nanoseconds new_period)
     {
-        temp_time = locations_[index_].time - locations_[index_ - 1].time;
+        // Cancel the existing timer
+        if (timer_)
+        {
+            timer_->cancel();
+        }
+
+        // Create a new timer with the updated period
+        timer_ = this->create_wall_timer(new_period, std::bind(&LocationPublisher::publish_location, this));
+        // RCLCPP_INFO(this->get_logger(), "Timer period changed to %li ms", new_period.count());
     }
-    else
+
+    void response_callback(const msgs::msg::Response msg)
     {
-        temp_time = locations_[index_].time;
+        RCLCPP_INFO(this->get_logger(), "Received response");
+        // rclcpp::shutdown();
     }
-    auto millis = std::chrono::nanoseconds(static_cast<int64_t>(temp_time));
-    change_timer_period(millis);
-}
 
-void change_timer_period(std::chrono::nanoseconds new_period)
-{
-    // Cancel the existing timer
-    if (timer_)
+    rclcpp::Publisher<msgs::msg::LocationStamped>::SharedPtr publisher_;
+    rclcpp::Subscription<msgs::msg::Response>::SharedPtr subscriber_;
+    rclcpp::TimerBase::SharedPtr timer_;
+    std::string file_path_;
+
+    struct LocationData
     {
-        timer_->cancel();
-    }
-
-    // Create a new timer with the updated period
-    timer_ = this->create_wall_timer(new_period, std::bind(&LocationPublisher::publish_location, this));
-    // RCLCPP_INFO(this->get_logger(), "Timer period changed to %li ms", new_period.count());
-}
-
-void response_callback(const msgs::msg::Response msg)
-{
-    RCLCPP_INFO(this->get_logger(), "Received response");
-    // rclcpp::shutdown();
-}
-
-rclcpp::Publisher<msgs::msg::LocationStamped>::SharedPtr publisher_;
-rclcpp::Subscription<msgs::msg::Response>::SharedPtr subscriber_;
-rclcpp::TimerBase::SharedPtr timer_;
-std::string file_path_;
-
-struct LocationData
-{
-    uint64_t time;
-    float x, y;
+        uint64_t time;
+        float x, y;
+    };
+    std::vector<LocationData> locations_;
+    size_t index_ = 0;
+    size_t responces_seen = 0;
 };
-std::vector<LocationData> locations_;
-size_t index_ = 0;
-size_t responces_seen = 0;
-}
-;
 
 int main(int argc, char **argv)
 {
