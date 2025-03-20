@@ -80,7 +80,7 @@ private:
 
         publisher_->publish(msg);
 
-        // RCLCPP_INFO(this->get_logger(), "Published location: [%.2f, %.2f]", msg.location.x, msg.location.y);
+        RCLCPP_INFO(this->get_logger(), "Published location: [%.2f, %.2f]", msg.location.x, msg.location.y);
 
         index_++;
 
