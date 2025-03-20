@@ -92,9 +92,9 @@ private:
             target.velocity = target_velocity;
 
             // Check if this point is too far
-            if (target_velocity > max_velocity)
+            if (find_magnitude(target_velocity) > max_velocity)
             {
-                target_velocity = max_velocity;
+                target_velocity = scale_vector(max_velocity);
             }
 
             geometry_msgs::msg::Vector3 target_acceleration;
@@ -104,16 +104,9 @@ private:
             target.acceleration = target_acceleration;
 
             // Check if getting to this point requires too much acceleration
-            if (fabs(target_acceleration) > max_acceleration)
+            if (fabs(find_magnitude(target_acceleration)) > max_acceleration)
             {
-                if (target_acceleration < 0)
-                {
-                    target_acceleration = max_acceleration * -1;
-                }
-                else
-                {
-                    target_acceleration = max_acceleration;
-                }
+                target_acceleration = scale_vector(max_acceleration);
             }
 
             double target_angle = find_angle(target_velocity, target_last_velocity);
@@ -122,16 +115,9 @@ private:
             target.anglular_velocity = target_angular_velocity;
 
             // Check if getting to this point has too much angle
-            if (fabs(target_angular_velocity) > max_angular_velocity)
+            if (fabs(find_magnitude(target_angular_velocity)) > max_angular_velocity)
             {
-                if (target_angular_velocity < 0)
-                {
-                    target_angular_velocity = max_angular_velocity * -1;
-                }
-                else
-                {
-                    target_angular_velocity = max_angular_velocity;
-                }
+                target_angular_velocity = scale_vector(max_angular_velocity);
                 target_angle = target_angular_velocity * time_diff;
             }
 
@@ -144,13 +130,14 @@ private:
             new_point.y = lvtl.y + target_velocity * time_diff * std::sin(target_angle);
             new_point.z = 0.0;
             response_msg.target_location = new_point;
-            
+
             printf("lvtl: {%.2f, %.2f},\t target_location: {%.2f, %.2f}", lvtl.x, lvtl.y, new_point.x, new_point.y);
             // Simulate vehicle between lvtl and new point
 
             // Reset last variables
             last_time = new_time;
 
+            // TODO: maybe change this later
             target_last_location = target_location;
             target_last_velocity = target_velocity;
             target_last_acceleration = target_acceleration;
@@ -181,6 +168,27 @@ private:
 
         return angle;
     }
+
+    geometry_msgs::msg::Vector3 scale_vector(const geometry_msgs::msg::Vector3 &vec, double new_magnitude)
+    {
+        geometry_msgs::msg::Vector3 new_vec;
+        double current_magnitude = find_magnitude(vec);
+        if (current_magnitude == 0.0)
+        {
+            new_vec.x = 0.0;
+            new_vec.y = 0.0;
+            new_vec.z = 0.0;
+        }
+        else
+        {
+            double scale_factor = new_magnitude / current_magnitude;
+            new_vec.x = vec.x * scale_factor;
+            new_vec.y = vec.y * scale_factor;
+            new_vec.z = vec.z * scale_factor;
+        }
+        return new_vec;
+    }
+
     geometry_msgs::msg::Vector3 create_vector_from_points(const geometry_msgs::msg::Point &point_start,
                                                           const geometry_msgs::msg::Point &point_end)
     {
