@@ -52,14 +52,28 @@ private:
         while (std::getline(file, line))
         {
             std::stringstream ss(line);
-            uint32_t time, x, y;
-            if (ss >> time && ss.ignore() && ss >> x && ss.ignore() && ss >> y)
+            std::string time_str, x_str, y_str;
+
+            // Parse comma-separated values
+            if (std::getline(ss, time_str, ',') &&
+                std::getline(ss, x_str, ',') &&
+                std::getline(ss, y_str))
             {
-                locations_.push_back({time, x, y});
+                try
+                {
+                    uint64_t time = std::stoull(time_str);
+                    float x = std::stof(x_str);
+                    float y = std::stof(y_str);
+                    locations_.push_back({time, static_cast<uint64_t>(x * 100), static_cast<uint64_t>(y * 100)});
+                }
+                catch (const std::exception &e)
+                {
+                    RCLCPP_WARN(this->get_logger(), "Failed to parse line: %s", line.c_str());
+                }
             }
         }
         file.close();
-        // RCLCPP_INFO(this->get_logger(), "Loaded %zu locations", locations_.size());
+        RCLCPP_INFO(this->get_logger(), "Loaded %zu locations", locations_.size());
     }
 
     void publish_location()
@@ -133,7 +147,8 @@ private:
 
     struct LocationData
     {
-        uint64_t time, x, y;
+        uint64_t time;
+        float x, y;
     };
     std::vector<LocationData> locations_;
     size_t index_ = 0;
