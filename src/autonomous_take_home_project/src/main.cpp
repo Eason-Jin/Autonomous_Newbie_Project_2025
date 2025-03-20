@@ -1,6 +1,6 @@
 #include <cmath>
 #include <chrono>
-#include <inttypes.h>
+#include <algorithm>
 
 #include <rclcpp/rclcpp.hpp>
 #include <msgs/msg/location_stamped.hpp>
@@ -19,93 +19,144 @@ public:
 
         pub = this->create_publisher<msgs::msg::Response>("response", 10);
 
-        last_time = 0;
+        last_time = 0.0; // In seconds
 
-        last_point_1.x = 0.0;
-        last_point_1.y = 0.0;
-        last_point_1.z = 0.0;
+        // This is the location of the simulated vehicle
+        vehicle_last_location.x = 0.0;
+        vehicle_last_location.y = 0.0;
+        vehicle_last_location.z = 0.0;
 
-        last_point_2.x = 0.0;
-        last_point_2.y = 0.0;
-        last_point_2.z = 0.0;
+        vehicle_last_velocity.x = 0.0;
+        vehicle_last_velocity.y = 0.0;
+        vehicle_last_velocity.z = 0.0;
 
-        last_velocity.x = 0.0;
-        last_velocity.y = 0.0;
-        last_velocity.z = 0.0;
+        vehicle_last_acceleration.x = 0.0;
+        vehicle_last_acceleration.y = 0.0;
+        vehicle_last_acceleration.z = 0.0;
+
+        vehicle_last_angle = 0.0;
+
+        target_last_location.x = 0.0;
+        target_last_location.y = 0.0;
+        target_last_location.z = 0.0;
+
+        target_last_velocity.x = 0.0;
+        target_last_velocity.y = 0.0;
+        target_last_velocity.z = 0.0;
+
+        target_last_acceleration.x = 0.0;
+        target_last_acceleration.y = 0.0;
+        target_last_acceleration.z = 0.0;
+
+        target_last_angle = 0.0;
+
+        lvtl = vehicle_last_location;
     }
 
 private:
     void location_callback(const msgs::msg::LocationStamped::SharedPtr msg)
     {
+        const double max_velocity = 10;
+        const double max_acceleration = 2.5;
+        const double max_angular_velocity = 2.5;
+
         // Get time
         uint64_t sec = msg->header.stamp.sec;
         uint64_t nanosec = msg->header.stamp.nanosec;
 
-        uint64_t new_time = sec * 1000000000 + nanosec;
+        double new_time = sec + nanosec / 1000000000;
 
         // Get location
         double x = msg->location.x;
         double y = msg->location.y;
-        printf("Time: %" PRIu64 "\t x: %.2f\t y: %.2f\n", new_time, x, y);
+        printf("Time: %.9f\t x: %.2f\t y: %.2f\n", new_time, x, y);
 
         msgs::msg::Response response_msg;
         double time_diff = new_time - last_time;
 
+        // It will always be true, but just in case realistically
         if (time_diff > 0)
         {
-            geometry_msgs::msg::Point new_point;
-            new_point.x = x;
-            new_point.y = y;
-            new_point.z = 0.0;
-
-            geometry_msgs::msg::Vector3 new_velocity;
-            new_velocity.x = (x - last_point_2.x) / time_diff;
-            new_velocity.y = (y - last_point_2.y) / time_diff;
-            new_velocity.z = 0.0;
-
-            geometry_msgs::msg::Vector3 new_acceleration;
-            new_acceleration.x = (new_velocity.x - last_velocity.x) / time_diff;
-            new_acceleration.y = (new_velocity.y - last_velocity.y) / time_diff;
-            new_acceleration.z = 0.0;
-
-            // Create target
             msgs::msg::Kinematics target;
 
-            target.position = new_point;
-            target.velocity = new_velocity;
-            target.acceleration = new_acceleration;
+            geometry_msgs::msg::Point target_location;
+            target_location.x = x;
+            target_location.y = y;
+            target_location.z = 0.0;
+            target.position = target_location;
 
-            double angle = find_angle(new_velocity, last_velocity);
-            target.angle = angle;
-            double angular_velocity = angle / time_diff;
-            target.anglular_velocity = angular_velocity;
+            geometry_msgs::msg::Vector3 target_velocity;
+            target_velocity.x = (x - lvtl.x) / time_diff;
+            target_velocity.y = (y - lvtl.y) / time_diff;
+            target_velocity.z = 0.0;
+            target.velocity = target_velocity;
+
+            // Check if this point is too far
+            if (target_velocity > max_velocity)
+            {
+                target_velocity = max_velocity;
+            }
+
+            geometry_msgs::msg::Vector3 target_acceleration;
+            target_acceleration.x = (target_velocity.x - target_last_velocity.x) / time_diff;
+            target_acceleration.y = (target_velocity.y - target_last_velocity.y) / time_diff;
+            target_acceleration.z = 0.0;
+            target.acceleration = target_acceleration;
+
+            // Check if getting to this point requires too much acceleration
+            if (fabs(target_acceleration) > max_acceleration)
+            {
+                if (target_acceleration < 0)
+                {
+                    target_acceleration = max_acceleration * -1;
+                }
+                else
+                {
+                    target_acceleration = max_acceleration;
+                }
+            }
+
+            double target_angle = find_angle(target_velocity, target_last_velocity);
+            target.angle = target_angle;
+            double target_angular_velocity = target_angle / time_diff;
+            target.anglular_velocity = target_angular_velocity;
+
+            // Check if getting to this point has too much angle
+            if (fabs(target_angular_velocity) > max_angular_velocity)
+            {
+                if (target_angular_velocity < 0)
+                {
+                    target_angular_velocity = max_angular_velocity * -1;
+                }
+                else
+                {
+                    target_angular_velocity = max_angular_velocity;
+                }
+                target_angle = target_angular_velocity * time_diff;
+            }
 
             response_msg.target = target;
 
-            // printf("x: %.2f\t y: %.2f\t velocity: %.2f\t acc: %.2f\t angle: %.2f\t ang_v: %.2f\n", x, y, find_magnitude(new_velocity), find_magnitude(new_acceleration), angle, fabs(angular_velocity));
-            const double max_speed = 10;
-            const double max_acc = 2.5;
-            const double max_ang_v = 2.5;
-
-            if (is_valid(last_point_1, last_point_2, new_point) && find_magnitude(new_velocity) <= max_speed && find_magnitude(new_acceleration) <= max_acc && fabs(angular_velocity) <= max_ang_v)
-            {
-                lvtl = new_point;
-                response_msg.lvtl = lvtl;
-                response_msg.target_location = new_point;
-
-                // Set valid vehicle points
-            }
-            else
-            {
-                response_msg.target_location = create_midpoint(lvtl, new_point);
-
-                // Set invalid vehicle points
-            }
+            response_msg.lvtl = lvtl;
+            // Reconstruct target point using velocity and angle
+            geometry_msgs::msg::Point new_point;
+            new_point.x = lvtl.x + target_velocity * time_diff * std::cos(target_angle);
+            new_point.y = lvtl.y + target_velocity * time_diff * std::sin(target_angle);
+            new_point.z = 0.0;
+            response_msg.target_location = new_point;
+            
+            printf("lvtl: {%.2f, %.2f},\t target_location: {%.2f, %.2f}", lvtl.x, lvtl.y, new_point.x, new_point.y);
+            // Simulate vehicle between lvtl and new point
 
             // Reset last variables
             last_time = new_time;
-            last_point_1 = last_point_2; // Location at t-1 is now at t-2
-            last_point_2 = new_point;    // Update new location to t-1
+
+            target_last_location = target_location;
+            target_last_velocity = target_velocity;
+            target_last_acceleration = target_acceleration;
+            target_last_angle = target_angle;
+
+            lvtl = new_point;
 
             pub->publish(response_msg);
         }
@@ -177,9 +228,17 @@ private:
     rclcpp::Publisher<msgs::msg::Response>::SharedPtr pub;
 
     uint64_t last_time;
-    geometry_msgs::msg::Point last_point_1; // This is at t-2
-    geometry_msgs::msg::Point last_point_2; // This is at t-1
-    geometry_msgs::msg::Vector3 last_velocity;
+
+    geometry_msgs::msg::Point vehicle_last_location;
+    geometry_msgs::msg::Vector3 vehicle_last_velocity;
+    geometry_msgs::msg::Vector3 vehicle_last_acceleration;
+    double vehicle_last_angle;
+
+    geometry_msgs::msg::Point target_last_location;
+    geometry_msgs::msg::Vector3 target_last_velocity;
+    geometry_msgs::msg::Vector3 target_last_acceleration;
+    double target_last_angle;
+
     geometry_msgs::msg::Point lvtl;
 };
 
