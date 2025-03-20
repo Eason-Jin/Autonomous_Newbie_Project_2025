@@ -2,18 +2,19 @@
 #define CUBIC_REGRESSION_HPP
 
 #include <vector>
-#include <cstdint>
+#include <geometry_msgs/msg/point.hpp>
 
-class CubicRegression {
+class CubicRegression
+{
 public:
-    void fit(const std::vector<uint64_t>& x, const std::vector<double>& y);
-    double predict(uint64_t x) const;
+    void fit(const std::vector<uint64_t> &x, const std::vector<geometry_msgs::msg::Point> &y);
+    geometry_msgs::msg::Point predict(uint64_t x) const;
 
 private:
-    double a = 0; // Coefficient for x^3
-    double b = 0; // Coefficient for x^2
-    double c = 0; // Coefficient for x
-    double d = 0; // Constant term
+    void solveSystem(double A[4][4], double B[4], double &a, double &b, double &c, double &d);
+
+    double ax, bx, cx, dx;
+    double ay, by, cy, dy;
 };
 
-#endif
+#endif // CUBIC_REGRESSION_HPP
