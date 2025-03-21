@@ -43,6 +43,9 @@ public:
         target_last_velocity.z = 0.0;
 
         target_last_angle = 0.0;
+        
+        target_last_angle_2 = target_last_angle;
+        target_last_location_2 = target_last_location;
 
         lvtl = vehicle_last_location;
 
@@ -66,7 +69,7 @@ private:
         // Get location
         double x = msg->location.x;
         double y = msg->location.y;
-        printf("Published:\nTime: %f\t x: %.2f\t y: %.2f\n", new_time, x, y);
+        // printf("Published:\nTime: %f\t x: %.2f\t y: %.2f\n", new_time, x, y);
 
         msgs::msg::Response response_msg;
         double time_diff = new_time - last_time;
@@ -111,6 +114,7 @@ private:
         // Check if getting to this point has too much angle
         if (fabs(target_angular_velocity) > max_angular_velocity)
         {
+            printf("OUTLIER: %.2f\n", target_angular_velocity);
             if (target_angular_velocity < 0)
             {
                 target_angular_velocity = max_angular_velocity * -1;
@@ -138,7 +142,7 @@ private:
         msgs::msg::Kinematics vehicle;
 
         vehicle.position = new_point;
-        printf("\t\t new_x: %.2f\t new_y: %.2f\n", new_point.x, new_point.y);
+        // printf("\t\t new_x: %.2f\t new_y: %.2f\n", new_point.x, new_point.y);
 
         geometry_msgs::msg::Vector3 vehicle_velocity;
         vehicle_velocity.x = (new_point.x - lvtl.x) / time_diff;
@@ -242,8 +246,10 @@ private:
     double vehicle_last_angle;
 
     geometry_msgs::msg::Point target_last_location;
+    geometry_msgs::msg::Point target_last_location_2;
     geometry_msgs::msg::Vector3 target_last_velocity;
     double target_last_angle;
+    double target_last_angle_2;
 
     geometry_msgs::msg::Point lvtl; // Last valid target location
 

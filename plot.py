@@ -31,7 +31,7 @@ for i in range(1, len(x_coords) - 1):
 # Plot the histogram of angles
 plt.figure()
 plt.hist(angles, bins=30, edgecolor='black')
-plt.xlabel('Angle (degrees)')
+plt.xlabel('Angle')
 plt.ylabel('Frequency')
 plt.title('Histogram of Angles Between Consecutive Lines')
 plt.savefig("angles_histogram.jpg")

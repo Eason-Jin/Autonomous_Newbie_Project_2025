@@ -2,8 +2,8 @@ import numpy as np
 import scipy.interpolate as interpolate
 import matplotlib.pyplot as plt
 
-x = np.array([ 0. ,  1.2,  1.9,  3.2,  4. ,  6.5])
-y = np.array([ 0. ,  2.3,  3. ,  4.3,  2.9,  3.1])
+x = np.array([0,  1,  2,  3,  4, 5])
+y = np.array([0,  1,  2,  2,  2, 2])
 
 t, c, k = interpolate.splrep(x, y, k=4)
 N = 100
