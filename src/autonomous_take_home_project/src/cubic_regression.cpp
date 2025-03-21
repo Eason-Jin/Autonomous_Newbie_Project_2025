@@ -10,13 +10,13 @@ void CubicRegression::fit(const std::vector<uint64_t> &time, const std::vector<d
     }
 
     // Number of data points
-    size_t n = time.size();
+    std::size_t n = time.size();
 
     // Construct the Vandermonde matrix
     Eigen::MatrixXd A(n, 4);
     Eigen::VectorXd b(n);
 
-    for (size_t i = 0; i < n; ++i)
+    for (std::size_t i = 0; i < n; ++i)
     {
         double t = static_cast<double>(time[i]);
         A(i, 0) = 1.0;
