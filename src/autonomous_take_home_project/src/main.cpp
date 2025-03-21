@@ -32,8 +32,6 @@ public:
         vehicle_last_velocity.y = 0.0;
         vehicle_last_velocity.z = 0.0;
 
-        vehicle_last_angle = 0.0;
-
         target_last_location.x = 0.0;
         target_last_location.y = 0.0;
         target_last_location.z = 0.0;
@@ -42,15 +40,10 @@ public:
         target_last_velocity.y = 0.0;
         target_last_velocity.z = 0.0;
 
-        target_last_angle = 0.0;
-        
-        target_last_angle_2 = target_last_angle;
-        target_last_location_2 = target_last_location;
-
         lvtl = vehicle_last_location;
 
-        max_history = 5;
-        location_history.push_back({last_time, lvtl.x, lvtl.y});
+        locations.push_back(vehicle_last_location);
+        max_locations = 3;
     }
 
 private:
@@ -69,30 +62,74 @@ private:
         // Get location
         double x = msg->location.x;
         double y = msg->location.y;
-        // printf("Published:\nTime: %f\t x: %.2f\t y: %.2f\n", new_time, x, y);
+        printf("Time: %f\t x: %.2f\t y: %.2f\n", new_time, x, y);
 
         msgs::msg::Response response_msg;
+
+        locations.push_back(msg->location);
+        if (locations.size() > max_locations)
+        {
+            locations.pop_front();
+        }
+        // The car does not start until it has 3 locations
+        if (locations.size() < max_locations)
+        {
+            response_msg.target.position = msg->location;
+            response_msg.target.velocity = target_last_velocity;
+            response_msg.target.acceleration.x = 0.0;
+            response_msg.target.acceleration.y = 0.0;
+            response_msg.target.acceleration.z = 0.0;
+            response_msg.target.angle = 0.0;
+            response_msg.target.anglular_velocity = 0.0;
+            response_msg.lvtl = lvtl;
+            response_msg.target_location = lvtl;
+            response_msg.vehicle.position = vehicle_last_location;
+            response_msg.vehicle.velocity = vehicle_last_velocity;
+            response_msg.vehicle.acceleration.x = 0.0;
+            response_msg.vehicle.acceleration.y = 0.0;
+            response_msg.vehicle.acceleration.z = 0.0;
+            response_msg.vehicle.angle = 0.0;
+            response_msg.vehicle.anglular_velocity = 0.0;
+            pub->publish(response_msg);
+            return;
+        }
+
+        // Now there should be 3 locations in locations, past, now, next
+        // If now is invalid (i.e. angle between (now-past) and (next-now) is too large)
+        // then we interpolate between past and next, this new point becomes now
+        // The vehicle is at past trying to move to now
         double time_diff = new_time - last_time;
+        geometry_msgs::msg::Point past = locations[0];
+        geometry_msgs::msg::Point now = locations[1];
+        geometry_msgs::msg::Point next = locations[2];
+
+        geometry_msgs::msg::Vector3 past_to_now = create_vector_from_points(past, now);
+        geometry_msgs::msg::Vector3 now_to_next = create_vector_from_points(now, next);
+
+        double angle = find_angle(past_to_now, now_to_next);
+        double angular_velocity = angle / time_diff;
+        if (fabs(angular_velocity) > max_angular_velocity)
+        {
+            // Interpolate between past and next
+            double new_x = past.x + (next.x - past.x) / 2;
+            double new_y = past.y + (next.y - past.y) / 2;
+            now.x = new_x;
+            now.y = new_y;
+        }
 
         msgs::msg::Kinematics target;
 
         geometry_msgs::msg::Point target_location;
-        target_location.x = x;
-        target_location.y = y;
+        target_location.x = now.x;
+        target_location.y = now.y;
         target_location.z = 0.0;
         target.position = target_location;
 
         geometry_msgs::msg::Vector3 target_velocity;
-        target_velocity.x = (x - lvtl.x) / time_diff;
-        target_velocity.y = (y - lvtl.y) / time_diff;
+        target_velocity.x = (now.x - lvtl.x) / time_diff;
+        target_velocity.y = (now.y - lvtl.y) / time_diff;
         target_velocity.z = 0.0;
         target.velocity = target_velocity;
-
-        // Check if this point is too far
-        if (find_magnitude(target_velocity) > max_velocity)
-        {
-            target_velocity = scale_vector(target_velocity, max_velocity);
-        }
 
         geometry_msgs::msg::Vector3 target_acceleration;
         target_acceleration.x = (target_velocity.x - target_last_velocity.x) / time_diff;
@@ -101,80 +138,62 @@ private:
         target.acceleration = target_acceleration;
 
         // Check if getting to this point requires too much acceleration
-        if (fabs(find_magnitude(target_acceleration)) > max_acceleration)
-        {
-            target_acceleration = scale_vector(target_acceleration, max_acceleration);
-        }
-
         double target_angle = find_angle(target_velocity, target_last_velocity);
         target.angle = target_angle;
-        double target_angular_velocity = target_angle / time_diff;
-        target.anglular_velocity = target_angular_velocity;
-
-        // Check if getting to this point has too much angle
-        if (fabs(target_angular_velocity) > max_angular_velocity)
-        {
-            printf("OUTLIER: %.2f\n", target_angular_velocity);
-            if (target_angular_velocity < 0)
-            {
-                target_angular_velocity = max_angular_velocity * -1;
-            }
-            else
-            {
-                target_angular_velocity = max_angular_velocity;
-            }
-            target_angle = target_angular_velocity * time_diff;
-        }
-
         response_msg.target = target;
 
-        response_msg.lvtl = lvtl;
-        // Reconstruct target point using velocity and angle
-        geometry_msgs::msg::Point new_point;
-
-        new_point.x = lvtl.x + target_velocity.x * time_diff * std::cos(target_angle);
-        new_point.y = lvtl.y + target_velocity.y * time_diff * std::sin(target_angle);
-        new_point.z = 0.0;
-
-        response_msg.target_location = new_point;
-
-        // Simulate vehicle between lvtl and new point
+        // Simulate vehicle from lvtl
         msgs::msg::Kinematics vehicle;
 
-        vehicle.position = new_point;
-        // printf("\t\t new_x: %.2f\t new_y: %.2f\n", new_point.x, new_point.y);
-
         geometry_msgs::msg::Vector3 vehicle_velocity;
-        vehicle_velocity.x = (new_point.x - lvtl.x) / time_diff;
-        vehicle_velocity.y = (new_point.y - lvtl.y) / time_diff;
-        vehicle_velocity.z = 0.0;
+        if (find_magnitude(target_velocity) > max_velocity)
+        {
+            vehicle_velocity = scale_vector(target_velocity, max_velocity);
+            // Recalculate location
+            now.x = lvtl.x + vehicle_velocity.x * time_diff;
+            now.y = lvtl.y + vehicle_velocity.y * time_diff;
+        }
+        else
+        {
+            vehicle_velocity = target_velocity;
+        }
         vehicle.velocity = vehicle_velocity;
 
+        geometry_msgs::msg::Point vehicle_location;
+        vehicle_location = now;
+        vehicle.position = vehicle_location;
+
         geometry_msgs::msg::Vector3 vehicle_acceleration;
-        vehicle_acceleration.x = (vehicle_velocity.x - vehicle_last_velocity.x) / time_diff;
-        vehicle_acceleration.y = (vehicle_velocity.y - vehicle_last_velocity.y) / time_diff;
-        vehicle_acceleration.z = 0.0;
-        target.acceleration = vehicle_acceleration;
+        if (fabs(find_magnitude(target_acceleration)) > max_acceleration)
+        {
+            vehicle_acceleration = scale_vector(target_acceleration, max_acceleration);
+        }
+        else
+        {
+            vehicle_acceleration = target_acceleration;
+        }
+        vehicle.acceleration = vehicle_acceleration;
 
         double vehicle_angle = find_angle(vehicle_velocity, vehicle_last_velocity);
         vehicle.angle = vehicle_angle;
         double vehicle_angular_velocity = vehicle_angle / time_diff;
         vehicle.anglular_velocity = vehicle_angular_velocity;
-
         response_msg.vehicle = vehicle;
+
+        response_msg.lvtl = lvtl;
+        response_msg.target_location = now;
 
         // Reset last variables
         last_time = new_time;
 
         target_last_location = target_location;
         target_last_velocity = target_velocity;
-        target_last_angle = target_angle;
 
-        vehicle_last_location = new_point;
+        vehicle_last_location = vehicle_location;
         vehicle_last_velocity = vehicle_velocity;
-        vehicle_last_angle = vehicle_angle;
 
-        lvtl = new_point;
+        lvtl = now;
+        printf("\t\tnow.x: %.2f\t now.y: %.2f\n", now.x, now.y);
 
         pub->publish(response_msg);
     }
@@ -243,18 +262,14 @@ private:
 
     geometry_msgs::msg::Point vehicle_last_location;
     geometry_msgs::msg::Vector3 vehicle_last_velocity;
-    double vehicle_last_angle;
 
     geometry_msgs::msg::Point target_last_location;
-    geometry_msgs::msg::Point target_last_location_2;
     geometry_msgs::msg::Vector3 target_last_velocity;
-    double target_last_angle;
-    double target_last_angle_2;
+
+    std::deque<geometry_msgs::msg::Point> locations; // Last, now, next
+    size_t max_locations;
 
     geometry_msgs::msg::Point lvtl; // Last valid target location
-
-    std::deque<std::tuple<uint64_t, double, double>> location_history;
-    size_t max_history;
 };
 
 int main(int argc, char **argv)
