@@ -47,7 +47,7 @@ public:
         lvtl = vehicle_last_location;
 
         max_history = 5;
-        location_history.push_back({last_time, lvtl});
+        location_history.push_back({last_time, lvtl.x, lvtl.y});
     }
 
 private:
@@ -66,7 +66,7 @@ private:
         // Get location
         double x = msg->location.x;
         double y = msg->location.y;
-        printf("Time: %f\t x: %.2f\t y: %.2f\n", new_time, x, y);
+        printf("Published:\nTime: %f\t x: %.2f\t y: %.2f\n", new_time, x, y);
 
         msgs::msg::Response response_msg;
         double time_diff = new_time - last_time;
@@ -127,37 +127,11 @@ private:
         response_msg.lvtl = lvtl;
         // Reconstruct target point using velocity and angle
         geometry_msgs::msg::Point new_point;
-        if (location_history.size() < max_history)
-        {
-            new_point.x = lvtl.x + target_velocity.x * time_diff * std::cos(target_angle);
-            new_point.y = lvtl.y + target_velocity.y * time_diff * std::sin(target_angle);
-            new_point.z = 0.0;
 
-            location_history.push_back({new_time, new_point});
-        }
-        else
-        {
-            std::vector<uint64_t> times;
-            std::vector<geometry_msgs::msg::Point> points_x, points_y;
+        new_point.x = lvtl.x + target_velocity.x * time_diff * std::cos(target_angle);
+        new_point.y = lvtl.y + target_velocity.y * time_diff * std::sin(target_angle);
+        new_point.z = 0.0;
 
-            for (const auto &pair : location_history)
-            {
-                times.push_back(pair.first);
-                points_x.push_back(pair.second.x);
-                points_y.push_back(pair.second.y);
-            }
-
-            CubicRegression cr_x, cr_y;
-            cr_x.fit(times, points_x);
-            cr_y.fit(times, points_y);
-
-            new_point.x = cr_x.predict(new_time);
-            new_point.y = cr_y.predict(new_time);
-            new_point.z = 0.0;
-
-            location_history.pop_front();
-            location_history.push_back({new_time, new_point});
-        }
         response_msg.target_location = new_point;
 
         // Simulate vehicle between lvtl and new point
@@ -271,9 +245,9 @@ private:
     geometry_msgs::msg::Vector3 target_last_velocity;
     double target_last_angle;
 
-    geometry_msgs::msg::Point lvtl;
+    geometry_msgs::msg::Point lvtl; // Last valid target location
 
-    std::deque<std::pair<uint64_t, geometry_msgs::msg::Point>> location_history;
+    std::deque<std::tuple<uint64_t, double, double>> location_history;
     size_t max_history;
 };
 
